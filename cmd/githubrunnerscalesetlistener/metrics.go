@@ -266,7 +266,7 @@ func (m *metricsExporter) withLabels(l prometheus.Labels) {
 
 func makeLabels(labels prometheus.Labels, names []string) prometheus.Labels {
 	l := make(prometheus.Labels, len(labels))
-	for _, lbl := range labels {
+	for _, lbl := range names {
 		l[lbl] = labels[lbl]
 	}
 	return l
