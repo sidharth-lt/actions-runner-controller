@@ -48,6 +48,7 @@ type RunnerScaleSetListenerConfig struct {
 	MaxRunners                  int    `split_words:"true"`
 	MinRunners                  int    `split_words:"true"`
 	RunnerScaleSetId            int    `split_words:"true"`
+	RunnerScaleSetName          string `split_words:"true"`
 	ServerRootCA                string `split_words:"true"`
 }
 

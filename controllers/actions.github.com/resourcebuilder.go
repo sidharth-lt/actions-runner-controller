@@ -130,6 +130,10 @@ func (b *resourceBuilder) newScaleSetListenerPod(autoscalingListener *v1alpha1.A
 			Name:  "GITHUB_RUNNER_SCALE_SET_ID",
 			Value: strconv.Itoa(autoscalingListener.Spec.RunnerScaleSetId),
 		},
+		{
+			Name:  "GITHUB_RUNNER_SCALE_SET_NAME",
+			Value: autoscalingListener.Spec.AutoscalingRunnerSetName,
+		},
 	}
 	listenerEnv = append(listenerEnv, envs...)
 

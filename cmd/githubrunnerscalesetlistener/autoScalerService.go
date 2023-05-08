@@ -51,7 +51,7 @@ func WithPrometheusMetrics(conf RunnerScaleSetListenerConfig) func(*Service) {
 		svc.metricsExporter.withBaseLabels(baseLabels{
 			scaleSetName:                  conf.EphemeralRunnerSetName,
 			scaleSetConfigURL:             conf.ConfigureUrl,
-			autoscalingRunnerSetName:      conf.EphemeralRunnerSetName,
+			autoscalingRunnerSetName:      conf.RunnerScaleSetName,
 			autoscalingRunnerSetNamespace: conf.EphemeralRunnerSetNamespace,
 			repositoryName:                repo,
 			ownerName:                     owner,

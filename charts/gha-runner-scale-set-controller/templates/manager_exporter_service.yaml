@@ -18,5 +18,25 @@ spec:
   selector:
     app.kubernetes.io/part-of: gha-runner-scale-set-controller
     app.kubernetes.io/component: controller-manager
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/part-of: gha-runner-scale-set
+    app.kubernetes.io/component: runner-scale-set-metrics-exporter
+    {{- with .Values.metrics.exporterServiceLabels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  name: {{ include "gha-runner-scale-set-controller.fullname" . }}-listener-metrics-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+  - name: metrics
+    port: 8888
+    protocol: "TCP"
+  selector:
+    app.kubernetes.io/part-of: gha-runner-scale-set
+    app.kubernetes.io/component: runner-scale-set-listener
 {{- end }}
 
