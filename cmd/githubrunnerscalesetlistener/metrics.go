@@ -23,7 +23,7 @@ const (
 	labelKeyRunnerName                    = "runner_name"
 )
 
-const githubScaleSetSubsystem = "github_runner_scale_set"
+const githubScaleSetSubsystem = "gha"
 
 // labels
 var (

@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -912,4 +913,75 @@ func TestTemplate_ManagerSingleNamespaceRoleBinding(t *testing.T) {
 	assert.Equal(t, "test-arc-gha-runner-scale-set-controller-manager-single-namespace-role", managerSingleNamespaceWatchRoleBinding.RoleRef.Name)
 	assert.Equal(t, "test-arc-gha-runner-scale-set-controller", managerSingleNamespaceWatchRoleBinding.Subjects[0].Name)
 	assert.Equal(t, namespaceName, managerSingleNamespaceWatchRoleBinding.Subjects[0].Namespace)
+}
+
+func TestControllerDeployment_MetricsPorts(t *testing.T) {
+	t.Parallel()
+
+	// Path to the helm chart we will test
+	helmChartPath, err := filepath.Abs("../../gha-runner-scale-set-controller")
+	require.NoError(t, err)
+
+	chartContent, err := os.ReadFile(filepath.Join(helmChartPath, "Chart.yaml"))
+	require.NoError(t, err)
+
+	chart := new(Chart)
+	err = yaml.Unmarshal(chartContent, chart)
+	require.NoError(t, err)
+
+	releaseName := "test-arc"
+	namespaceName := "test-" + strings.ToLower(random.UniqueId())
+
+	options := &helm.Options{
+		SetValues: map[string]string{
+			"image.tag":                "dev",
+			"metrics.controllerAddr":   ":8080",
+			"metrics.listenerAddr":     ":8081",
+			"metrics.listenerEndpoint": "/metrics",
+		},
+		KubectlOptions: k8s.NewKubectlOptions("", "", namespaceName),
+	}
+
+	output := helm.RenderTemplate(t, options, helmChartPath, releaseName, []string{"templates/deployment.yaml"})
+
+	var deployment appsv1.Deployment
+	helm.UnmarshalK8SYaml(t, output, &deployment)
+
+	require.Len(t, deployment.Spec.Template.Spec.Containers, 1, "Expected one container")
+	container := deployment.Spec.Template.Spec.Containers[0]
+	assert.Len(t, container.Ports, 1)
+	port := container.Ports[0]
+	assert.Equal(t, corev1.Protocol("TCP"), port.Protocol)
+	assert.Equal(t, int32(8080), port.ContainerPort)
+
+	metricsFlags := map[string]*struct {
+		expect    string
+		frequency int
+	}{
+		"--listener-metrics-addr": {
+			expect: ":8081",
+		},
+		"--listener-metrics-endpoint": {
+			expect: "/metrics",
+		},
+		"--metrics-addr": {
+			expect: ":8080",
+		},
+	}
+	for _, cmd := range container.Args {
+		s := strings.Split(cmd, "=")
+		if len(s) != 2 {
+			continue
+		}
+		flag, ok := metricsFlags[s[0]]
+		if !ok {
+			continue
+		}
+		flag.frequency++
+		assert.Equal(t, flag.expect, s[1])
+	}
+
+	for key, value := range metricsFlags {
+		assert.Equal(t, value.frequency, 1, fmt.Sprintf("frequency of %q is not 1", key))
+	}
 }

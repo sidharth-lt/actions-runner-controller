@@ -101,7 +101,7 @@ flags:
   updateStrategy: "immediate"
 
 metrics:
-  serviceMonitor: false
-  serviceMonitorNamespace: "default" # need to match the namespace your prometheus's watching namespaces
-  serviceMonitorLabels:
-    release: "prometheus"
+  controllerAddr: ":8080"
+  listenerAddr: ":8080"
+  listenerEndpoint: "/metrics"
+

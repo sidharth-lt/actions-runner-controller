@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net"
 	"strconv"
 
 	"github.com/actions/actions-runner-controller/apis/actions.github.com/v1alpha1"
@@ -104,7 +105,12 @@ func (b *resourceBuilder) newAutoScalingListener(autoscalingRunnerSet *v1alpha1.
 	return autoscalingListener, nil
 }
 
-func (b *resourceBuilder) newScaleSetListenerPod(autoscalingListener *v1alpha1.AutoscalingListener, serviceAccount *corev1.ServiceAccount, secret *corev1.Secret, envs ...corev1.EnvVar) *corev1.Pod {
+type listenerMetricsServerConfig struct {
+	addr     string
+	endpoint string
+}
+
+func (b *resourceBuilder) newScaleSetListenerPod(autoscalingListener *v1alpha1.AutoscalingListener, serviceAccount *corev1.ServiceAccount, secret *corev1.Secret, metricsConfig *listenerMetricsServerConfig, envs ...corev1.EnvVar) (*corev1.Pod, error) {
 	listenerEnv := []corev1.EnvVar{
 		{
 			Name:  "GITHUB_CONFIGURE_URL",
@@ -193,6 +199,37 @@ func (b *resourceBuilder) newScaleSetListenerPod(autoscalingListener *v1alpha1.A
 		})
 	}
 
+	var ports []corev1.ContainerPort
+	if metricsConfig != nil && len(metricsConfig.addr) != 0 {
+		listenerEnv = append(
+			listenerEnv,
+			corev1.EnvVar{
+				Name:  "GITHUB_METRICS_ADDR",
+				Value: metricsConfig.addr,
+			},
+			corev1.EnvVar{
+				Name:  "GITHUB_METRICS_ENDPOINT",
+				Value: metricsConfig.endpoint,
+			},
+		)
+
+		_, portStr, err := net.SplitHostPort(metricsConfig.addr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to split host:port for metrics address: %v", err)
+		}
+		port, err := strconv.ParseInt(portStr, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert port %q to int32: %v", portStr, err)
+		}
+		ports = append(
+			ports,
+			corev1.ContainerPort{
+				ContainerPort: int32(port),
+				Protocol:      corev1.ProtocolTCP,
+			},
+		)
+	}
+
 	podSpec := corev1.PodSpec{
 		ServiceAccountName: serviceAccount.Name,
 		Containers: []corev1.Container{
@@ -204,12 +241,7 @@ func (b *resourceBuilder) newScaleSetListenerPod(autoscalingListener *v1alpha1.A
 				Command: []string{
 					"/github-runnerscaleset-listener",
 				},
-				Ports: []corev1.ContainerPort{
-					{
-						ContainerPort: 8888,
-						Protocol:      corev1.ProtocolTCP,
-					},
-				},
+				Ports: ports,
 			},
 		},
 		ImagePullSecrets: autoscalingListener.Spec.ImagePullSecrets,
@@ -234,7 +266,7 @@ func (b *resourceBuilder) newScaleSetListenerPod(autoscalingListener *v1alpha1.A
 		Spec: podSpec,
 	}
 
-	return newRunnerScaleSetListenerPod
+	return newRunnerScaleSetListenerPod, nil
 }
 
 func (b *resourceBuilder) newScaleSetListenerServiceAccount(autoscalingListener *v1alpha1.AutoscalingListener) *corev1.ServiceAccount {
