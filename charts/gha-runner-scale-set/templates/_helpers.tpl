@@ -548,11 +548,3 @@ volumeMounts:
 {{- $managerServiceAccountNamespace }}
 {{- end }}
 {{- end }}
-
-{{- define "gha-runner-scale-set.metricsExporterServiceName" -}}
-{{- include "gha-runner-scale-set.fullname" . }}-metrics-exporter-service
-{{- end }}
-
-{{- define "gha-runner-scale-set.listenerName"}}
-{{- printf "%s-%s-listener" .Release.Name .Release.Namespace }}
-{{- end }}
