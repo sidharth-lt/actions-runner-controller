@@ -1,14 +1,28 @@
 package testserver
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/actions/actions-runner-controller/github/actions"
+	"github.com/go-logr/logr"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/gorilla/mux"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/stretchr/testify/require"
+)
+
+const (
+	runnerEndpoint       = "/_apis/distributedtask/pools/0/agents"
+	scaleSetEndpoint     = "/_apis/runtime/runnerscalesets"
+	apiVersionQueryParam = "api-version=6.0-preview"
 )
 
 // New returns a new httptest.Server that handles the
@@ -38,6 +52,21 @@ func NewUnstarted(t ginkgo.GinkgoTInterface, handler http.Handler, options ...ac
 	for _, option := range options {
 		option(server)
 	}
+
+	mux := mux.NewRouter()
+	// GitHub endpoints
+	mux.HandleFunc("/orgs/{org}/actions/runners/registration-token", server.handleCreateRegistrationToken).Methods(http.MethodPost)
+	mux.HandleFunc("/enterprises/{enterprise}/actions/runners/registration-token", server.handleCreateRegistrationToken).Methods(http.MethodPost)
+	mux.HandleFunc("/repos/{org}/{repo}/actions/runners/registration-token", server.handleCreateRegistrationToken).Methods(http.MethodPost)
+	mux.HandleFunc("/app/installations/{id}/access_tokens", server.handleCreateAccessToken).Methods(http.MethodPost)
+	mux.HandleFunc("/actions/runner-registration", server.handleGetActionsServiceAdminConnection).Methods(http.MethodPost)
+
+	// Actions service endpoints
+	mux.HandleFunc(scaleSetEndpoint, server.handleCreateRunnerScaleSet).Methods(http.MethodPost)
+	mux.HandleFunc(scaleSetEndpoint+"/{id:[0-9]+}", server.handleUpdateRunnerScaleSet).Methods(http.MethodPatch)
+	mux.HandleFunc(scaleSetEndpoint+"/{id:[0-9]+}", server.handleDeleteRunnerScaleSet).Methods(http.MethodDelete)
+	mux.HandleFunc(scaleSetEndpoint+"/{id:[0-9]+}", server.handleGetRunnerScaleSetByID).Methods(http.MethodGet)
+	mux.HandleFunc(scaleSetEndpoint, server.handleGetRunnerScaleSetByName).Methods(http.MethodGet)
 
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// handle getRunnerRegistrationToken
@@ -75,8 +104,11 @@ func WithActionsToken(token string) actionsServerOption {
 
 type actionsServer struct {
 	*httptest.Server
+	logger     logr.Logger
+	token      string
+	adminToken string
 
-	token string
+	db db
 }
 
 func (s *actionsServer) ConfigURLForOrg(org string) string {
@@ -113,3 +145,165 @@ HPgR5xrzL6XM8y9TgaOlJAdK6HtYp6d/UOmN0+Butf6JUq07TphRT5tXNJVgemch
 O5x/9UKfbrc+KyzbAkAo97TfFC+mZhU1N5fFelaRu4ikPxlp642KRUSkOh8GEkNf
 jQ97eJWiWtDcsMUhcZgoB5ydHcFlrBIn6oBcpge5
 -----END RSA PRIVATE KEY-----`
+
+func (s *actionsServer) handleGetActionsServiceAdminConnection(w http.ResponseWriter, r *http.Request) {
+	auth := r.Header.Get("Authorization")
+	switch {
+	case strings.HasPrefix(auth, "Basic "), strings.HasPrefix(auth, "Bearer "):
+	default:
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
+	type request struct {
+		URL         string `json:"url"`
+		RunnerEvent string `json:"runner_event"`
+	}
+
+	var body request
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.logger.Error(err, "Failed to decode request body")
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	res := actions.ActionsServiceAdminConnection{
+		ActionsServiceUrl: &s.Server.Config.Addr,
+		AdminToken:        &s.adminToken,
+	}
+	writeJSON(w, &res)
+}
+
+func (s *actionsServer) handleCreateRegistrationToken(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		Token     *string    `json:"token"`
+		ExpiresAt *time.Time `json:"expires_at"`
+	}
+
+	registrationToken := strings.Repeat("a", 32)
+	expiresAt := time.Now().Add(1 * time.Hour)
+
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, &response{
+		Token:     &registrationToken,
+		ExpiresAt: &expiresAt,
+	})
+}
+
+func (s *actionsServer) handleCreateAccessToken(w http.ResponseWriter, r *http.Request) {
+	type response struct {
+		Token     string    `json:"token"`
+		ExpiresAt time.Time `json:"expires_at"`
+	}
+
+	res := response{
+		Token:     strings.Repeat("b", 32),
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+
+	writeJSON(w, &res)
+}
+
+func (s *actionsServer) handleCreateRunnerScaleSet(w http.ResponseWriter, r *http.Request) {
+	var body actions.RunnerScaleSet
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.logger.Error(err, "Failed to read runner scale set")
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	body.Id = int(s.db.scaleSetIDCounter.Add(1))
+	s.db.scaleSets.Store(body.Id, &body)
+}
+
+func (s *actionsServer) handleUpdateRunnerScaleSet(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.Atoi(mux.Vars(r)["id"]) // err should not occur since it is guarded by gorilla/mux
+	_, ok := s.db.scaleSets.Load(id)
+	if !ok {
+		s.logger.Info("scale set is not found", "id", id)
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
+	}
+
+	var body actions.RunnerScaleSet
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		s.logger.Error(err, "Failed to read runner scale set")
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	body.Id = int(id)
+	s.db.scaleSets.Store(id, &body)
+	writeJSON(w, &body)
+}
+
+func (s *actionsServer) handleDeleteRunnerScaleSet(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.Atoi(mux.Vars(r)["id"]) // err should not occur since it is guarded by gorilla/mux
+	_, ok := s.db.scaleSets.LoadAndDelete(id)
+	if !ok {
+		s.logger.Info("Can't delete scale set that does not exist", "id", id)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+	s.logger.Info("Runner scale set deleted", "id", id)
+}
+
+func (s *actionsServer) handleGetRunnerScaleSetByID(w http.ResponseWriter, r *http.Request) {
+	id, _ := strconv.Atoi(mux.Vars(r)["id"]) // err should not occur since it is guarded by gorilla/mux
+	v, ok := s.db.scaleSets.Load(id)
+	if !ok {
+		s.logger.Info("Scale set not found", "id", id)
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, v)
+}
+
+func (s *actionsServer) handleGetRunnerScaleSetByName(w http.ResponseWriter, r *http.Request) {
+	groupID, err := strconv.Atoi(r.URL.Query().Get("runnerGroupId"))
+	if err != nil {
+		s.logger.Error(err, "failed to parse runner group id")
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		s.logger.Error(fmt.Errorf("received empty name"), "Request does not contain name URL parameter")
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	type response struct {
+		Count           int                       `json:"count"`
+		RunnerScaleSets []*actions.RunnerScaleSet `json:"value"`
+	}
+
+	var res response
+	s.db.scaleSets.Range(func(key, value any) bool {
+		v := value.(*actions.RunnerScaleSet)
+		if v.RunnerGroupId != groupID {
+			return true
+		}
+		if v.Name != name {
+			return true
+		}
+
+		res.RunnerScaleSets = append(res.RunnerScaleSets, v)
+		res.Count++
+		return true
+	})
+
+	writeJSON(w, &res)
+}
+
+func writeJSON(w http.ResponseWriter, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
+}
+
+type db struct {
+	scaleSetIDCounter atomic.Int64
+	scaleSets         sync.Map
+}
