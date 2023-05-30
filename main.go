@@ -108,7 +108,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	flag.StringVar(&listenerMetricsAddr, "listener-metrics-addr", "8080", "The address applied to AutoscalingListener metrics server")
+	flag.StringVar(&listenerMetricsAddr, "listener-metrics-addr", ":8080", "The address applied to AutoscalingListener metrics server")
 	flag.StringVar(&listenerMetricsEndpoint, "listener-metrics-endpoint", "/metrics", "The AutoscalingListener metrics server endpoint from which the metrics are collected")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,

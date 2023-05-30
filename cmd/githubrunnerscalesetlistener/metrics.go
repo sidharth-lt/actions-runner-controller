@@ -11,8 +11,7 @@ import (
 const (
 	labelKeyRunnerScaleSetName            = "name"
 	labelKeyRunnerScaleSetConfigURL       = "config_url"
-	labelKeyAutoScalingRunnerSetName      = "auto_scaling_runner_set_name"
-	labelKeyAutoScalingRunnerSetNamespace = "auto_scaling_runner_set_namespace"
+	labelKeyAutoScalingRunnerSetNamespace = "namespace"
 	labelKeyRepositoryName                = "repository_name"
 	labelKeyOwnerName                     = "owner_name"
 	labelKeyJobName                       = "job_name"
@@ -30,7 +29,6 @@ var (
 	scaleSetLabels = []string{
 		labelKeyRunnerScaleSetName,
 		labelKeyRunnerScaleSetConfigURL,
-		labelKeyAutoScalingRunnerSetName,
 		labelKeyAutoScalingRunnerSetNamespace,
 	}
 
@@ -90,7 +88,7 @@ var (
 		prometheus.GaugeOpts{
 			Subsystem: githubScaleSetSubsystem,
 			Name:      "registered_runners",
-			Help:      "Number of registered runners.",
+			Help:      "Number of runners registered by the scale set.",
 		},
 		scaleSetLabels,
 	)
@@ -108,7 +106,7 @@ var (
 		prometheus.GaugeOpts{
 			Subsystem: githubScaleSetSubsystem,
 			Name:      "min_runners",
-			Help:      "Number of runners desired bu the scale set.",
+			Help:      "Minimum number of runners.",
 		},
 		scaleSetLabels,
 	)
@@ -117,7 +115,7 @@ var (
 		prometheus.GaugeOpts{
 			Subsystem: githubScaleSetSubsystem,
 			Name:      "max_runners",
-			Help:      "Number of runners desired bu the scale set.",
+			Help:      "Maximum number of runners.",
 		},
 		scaleSetLabels,
 	)
@@ -126,7 +124,7 @@ var (
 		prometheus.GaugeOpts{
 			Subsystem: githubScaleSetSubsystem,
 			Name:      "desired_runners",
-			Help:      "Number of runners desired bu the scale set.",
+			Help:      "Number of runners desired by the scale set.",
 		},
 		scaleSetLabels,
 	)
