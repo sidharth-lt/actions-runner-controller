@@ -9,17 +9,17 @@ import (
 
 // label names
 const (
-	labelKeyRunnerScaleSetName            = "name"
-	labelKeyRunnerScaleSetConfigURL       = "config_url"
-	labelKeyAutoScalingRunnerSetNamespace = "namespace"
-	labelKeyRepositoryName                = "repository_name"
-	labelKeyOwnerName                     = "owner_name"
-	labelKeyJobName                       = "job_name"
-	labelKeyJobWorkflowRef                = "job_workflow_ref"
-	labelKeyEventName                     = "event_name"
-	labelKeyJobResult                     = "job_result"
-	labelKeyRunnerID                      = "runner_id"
-	labelKeyRunnerName                    = "runner_name"
+	labelKeyRunnerScaleSetName      = "name"
+	labelKeyRunnerScaleSetNamespace = "namespace"
+	labelKeyRunnerScaleSetConfigURL = "config_url"
+	labelKeyRepositoryName          = "repository_name"
+	labelKeyOwnerName               = "owner_name"
+	labelKeyJobName                 = "job_name"
+	labelKeyJobWorkflowRef          = "job_workflow_ref"
+	labelKeyEventName               = "event_name"
+	labelKeyJobResult               = "job_result"
+	labelKeyRunnerID                = "runner_id"
+	labelKeyRunnerName              = "runner_name"
 )
 
 const githubScaleSetSubsystem = "gha"
@@ -29,7 +29,7 @@ var (
 	scaleSetLabels = []string{
 		labelKeyRunnerScaleSetName,
 		labelKeyRunnerScaleSetConfigURL,
-		labelKeyAutoScalingRunnerSetNamespace,
+		labelKeyRunnerScaleSetNamespace,
 	}
 
 	jobLabels = []string{
@@ -291,10 +291,9 @@ func (b *baseLabels) jobLabels(jobBase *actions.JobMessageBase) prometheus.Label
 
 func (b *baseLabels) scaleSetLabels() prometheus.Labels {
 	return prometheus.Labels{
-		labelKeyRunnerScaleSetName:            b.scaleSetName,
-		labelKeyRunnerScaleSetConfigURL:       b.scaleSetConfigURL,
-		labelKeyAutoScalingRunnerSetName:      b.autoscalingRunnerSetName,
-		labelKeyAutoScalingRunnerSetNamespace: b.autoscalingRunnerSetNamespace,
+		labelKeyRunnerScaleSetName:      b.scaleSetName,
+		labelKeyRunnerScaleSetConfigURL: b.scaleSetConfigURL,
+		labelKeyRunnerScaleSetNamespace: b.autoscalingRunnerSetNamespace,
 	}
 }
 
