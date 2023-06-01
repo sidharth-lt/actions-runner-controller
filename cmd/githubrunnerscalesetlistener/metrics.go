@@ -11,9 +11,9 @@ import (
 const (
 	labelKeyRunnerScaleSetName      = "name"
 	labelKeyRunnerScaleSetNamespace = "namespace"
-	labelKeyRunnerScaleSetConfigURL = "config_url"
-	labelKeyRepositoryName          = "repository_name"
-	labelKeyOwnerName               = "owner_name"
+	labelKeyEnterprise              = "enterprise"
+	labelKeyOrganization            = "organization"
+	labelKeyRepository              = "repository"
 	labelKeyJobName                 = "job_name"
 	labelKeyJobWorkflowRef          = "job_workflow_ref"
 	labelKeyEventName               = "event_name"
@@ -28,13 +28,16 @@ const githubScaleSetSubsystem = "gha"
 var (
 	scaleSetLabels = []string{
 		labelKeyRunnerScaleSetName,
-		labelKeyRunnerScaleSetConfigURL,
+		labelKeyRepository,
+		labelKeyOrganization,
+		labelKeyEnterprise,
 		labelKeyRunnerScaleSetNamespace,
 	}
 
 	jobLabels = []string{
-		labelKeyRepositoryName,
-		labelKeyOwnerName,
+		labelKeyRepository,
+		labelKeyOrganization,
+		labelKeyEnterprise,
 		labelKeyJobName,
 		labelKeyJobWorkflowRef,
 		labelKeyEventName,
@@ -271,18 +274,18 @@ type metricsExporter struct {
 }
 
 type baseLabels struct {
-	scaleSetName                  string
-	scaleSetConfigURL             string
-	autoscalingRunnerSetName      string
-	autoscalingRunnerSetNamespace string
-	repositoryName                string
-	ownerName                     string
+	scaleSetName      string
+	scaleSetNamespace string
+	enterprise        string
+	organization      string
+	repository        string
 }
 
 func (b *baseLabels) jobLabels(jobBase *actions.JobMessageBase) prometheus.Labels {
 	return prometheus.Labels{
-		labelKeyRepositoryName: b.repositoryName,
-		labelKeyOwnerName:      b.ownerName,
+		labelKeyEnterprise:     b.enterprise,
+		labelKeyOrganization:   b.organization,
+		labelKeyRepository:     b.repository,
 		labelKeyJobName:        jobBase.JobDisplayName,
 		labelKeyJobWorkflowRef: jobBase.JobWorkflowRef,
 		labelKeyEventName:      jobBase.EventName,
@@ -292,8 +295,10 @@ func (b *baseLabels) jobLabels(jobBase *actions.JobMessageBase) prometheus.Label
 func (b *baseLabels) scaleSetLabels() prometheus.Labels {
 	return prometheus.Labels{
 		labelKeyRunnerScaleSetName:      b.scaleSetName,
-		labelKeyRunnerScaleSetConfigURL: b.scaleSetConfigURL,
-		labelKeyRunnerScaleSetNamespace: b.autoscalingRunnerSetNamespace,
+		labelKeyRunnerScaleSetNamespace: b.scaleSetNamespace,
+		labelKeyEnterprise:              b.enterprise,
+		labelKeyOrganization:            b.organization,
+		labelKeyRepository:              b.repository,
 	}
 }
 
