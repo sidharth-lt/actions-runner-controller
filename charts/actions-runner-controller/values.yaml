@@ -131,7 +131,10 @@ resources:
   #   cpu: 100m
   #   memory: 128Mi
 
-nodeSelector: {}
+nodeSelector:
+  kubernetes.io/os: linux
+#### >>>>>>>>>> These services can only be scheduled in linux pods, so switching to windows runners might affect these pods <<<<<<<<<<<<< ####
+
 
 tolerations: []
 
@@ -232,7 +235,9 @@ githubWebhookServer:
   # fsGroup: 2000
   securityContext: {}
   resources: {}
-  nodeSelector: {}
+  nodeSelector:
+    kubernetes.io/os: linux
+  #### >>>>>>>>>> These services can only be scheduled in linux pods, so switching to windows runners might affect these pods <<<<<<<<<<<<< ####  nodeSelector: {}
   tolerations: []
   affinity: {}
   priorityClassName: ""
@@ -351,7 +356,9 @@ actionsMetricsServer:
   # fsGroup: 2000
   securityContext: {}
   resources: {}
-  nodeSelector: {}
+  nodeSelector:
+    kubernetes.io/os: linux
+  #### >>>>>>>>>> These services can only be scheduled in linux pods, so switching to windows runners might affect these pods <<<<<<<<<<<<< ####
   tolerations: []
   affinity: {}
   priorityClassName: ""
